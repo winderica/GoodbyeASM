@@ -29,8 +29,8 @@ data ends
 code segment use16
     assume cs:code,ds:data,ss:stack
 start:
-    mov     ax,     data
-    mov     ds,     ax
+    mov     ax, data
+    mov     ds, ax
     jmp     login
 
 login:
