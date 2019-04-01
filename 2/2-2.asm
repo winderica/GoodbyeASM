@@ -13,6 +13,7 @@ data segment use16
     item_hint       db  'Input item name:', 13, 10, '$'
     level_hint      db  'Suggestion level is:', 13, 10, '$'
     calc_fail_hint  db  'Error: Divide by zero!', 13, 10, '$'
+    sold_out_hint   db  'This item is sold out!', 13, 10, '$'
     boss_username   db  'zhangchengru', 0
     boss_password   db  'test', 0, 0
     input_username  db  20
@@ -160,8 +161,7 @@ query_item:
     call    disptime
 loop_all:
     dec     cx
-    cmp     cx, 0
-    je      exit
+    jz      end_loop
 query:
     mov     esi, offset item_1
     mov     ebx, offset input_item + 2
@@ -187,11 +187,14 @@ next_item:
 sell_one:
     mov     ax, [edx+17]
     cmp     ax, [edx+15]
-    jge     login
+    jge     sold_out
     inc     ax
     mov     [edx+17], ax
     jmp     next_item
-
+sold_out:
+    mov     dx, offset sold_out_hint
+    mov     ah, 09h
+    int     21h
 calc_suggestion_level proc
     push    ebx
     push    ecx
@@ -230,9 +233,8 @@ calc_price:
     je      calc_failed
     idiv    ebx
     add     ecx, eax
-    mov     eax, ecx
-    shr     eax, 4
-    mov     [esi+9], ax
+    shr     ecx, 4
+    mov     [esi+9], cx
     pop     esi
     pop     edx
     pop     ecx
@@ -240,8 +242,10 @@ calc_price:
     ret
 calc_suggestion_level endp
 
-exit:
+end_loop:
     call    disptime
+    jmp     query_item
+exit:
     mov     ah, 4ch
     int     21h
 
