@@ -1,10 +1,14 @@
 .386
 
-public _func1
+; public _func1
 public _func2
 public _func3
 public _func4
 public _func5
+public _calc
+
+extrn _shop:byte
+extrn _print:near
 
 print_newline macro
     push    ax
@@ -23,16 +27,6 @@ print macro string
     push    ax
     push    dx
     mov     dx, offset string
-    mov     ah, 09h
-    int     21h
-    pop     dx
-    pop     ax
-endm
-
-print_address macro address
-    push    ax
-    push    dx
-    mov     dx, address
     mov     ah, 09h
     int     21h
     pop     dx
@@ -60,7 +54,11 @@ input macro string
     pop     ax
 endm
 
-data segment use16 word public 'DATA'
+_STACK segment use16 stack
+    db 500 dup(0)
+_STACK ends
+
+_DATA segment use16 word public 'DATA'
     item_number             equ 30
     not_found_hint          db  'Item not found, please input again', 13, 10, '$'
     item_hint               db  'Input item name:', 13, 10, '$'
@@ -68,7 +66,6 @@ data segment use16 word public 'DATA'
     calced_all_hint         db  'Calced suggestion level of all items successfully!', 13, 10, '$'
     ranked_all_hint         db  'Ranked suggestion level of all items successfully!', 13, 10, '$'
     invalid_value_hint      db  'Invalid value! Input again.', 13, 10, '$'
-    info_header_1           db  'name', 9, 'discnt', 9, 'price', 9, 'inNum', 9, 'outNum', 9, 'suggestion', 13, 10, '$'
     info_header_2           db  'name', 9, 'discnt', 9, 'inPrice', 9, 'price', 9, 'inNum', 9, 'outNum', 9, 'suggestion', 9, 'rank', 13, 10, '$'
     info_name               db  'name: ', '$'
     info_discount           db  'discount: ', '$'
@@ -94,41 +91,31 @@ data segment use16 word public 'DATA'
     input_out_num           db  5
                             db  0
     input_out_num_value     db  5 dup(0)
-    items                   db  item_number - 3 dup('temp', 0, '$', 4 dup(0), 8, 15, 0, 30, 0, 30, 0, 2, 0, ?, ?)
-                            db  'pen', 0, '$', 5 dup(0), 10
-                            dw  35, 56, 70, 25, ?
-                            db  'book', 0, '$', 4 dup(0), 9
-                            dw  12, 30, 25, 5, ?
-                            db  'bag', 0, '$', 5 dup(0), 9
-                            dw  40, 100, 45, 5, ?
     to_sort                 dw  item_number dup(0)
     rank                    db  item_number dup(0)
-    auth                    db  0
-data ends
+_DATA ends
 
-code segment use16 byte public 'CODE'
-    assume cs:code, ds:data, ss:stack
+_TEXT segment use16 byte public 'CODE'
+    assume cs:_TEXT, ds:_DATA, ss:_STACK
 
-_func1:
-    call    query_item
-    ret
+
 _func2:
     call    set_item
     ret
 _func3:
-    mov     dx, offset items
+    mov     dx, offset _shop
     call    calc_all
     print   calced_all_hint
     ret
 _func4:
-    mov     dx, offset items
+    mov     dx, offset _shop
     mov     di, offset to_sort
     mov     cx, offset rank
     call    calc_rank
     print   ranked_all_hint
     ret
 _func5:
-    mov     dx, offset items
+    mov     dx, offset _shop
     mov     di, offset to_sort
     mov     cx, offset rank
     call    print_all
@@ -141,7 +128,7 @@ find proc
     cmp     byte ptr[bx], 13
     je      return_enter
 query:
-    mov     si, offset items
+    mov     si, offset _shop
     mov     bx, offset input_item_value
     mov     cx, 0
 loop_item:
@@ -174,38 +161,6 @@ return_not_found:
     ret
 find endp
 
-query_item proc
-    pusha
-    call    find
-    cmp     ax, 0
-    je      return
-    cmp     ax, 1
-    je      item_found
-    jmp     item_not_found
-item_not_found:
-    print   not_found_hint
-    call    query_item
-    jmp     return
-item_found:
-    call    calc_suggestion_level
-    print   info_header_1
-    mov     si, dx
-    print_address si
-    print_char 9
-    movzx   ax, byte ptr[si + 10]
-    call    print_number
-    mov     ax, [si + 13]
-    call    print_number
-    mov     ax, [si + 15]
-    call    print_number
-    mov     ax, [si + 17]
-    call    print_number
-    mov     ax, [si + 19]
-    call    print_number
-    print_newline
-    jmp     return
-query_item endp
-
 set_item proc
     pusha
     call    find
@@ -222,7 +177,9 @@ set_item_found:
     call    calc_suggestion_level
     print   info_name
     mov     si, dx
-    print_address si
+    push    si
+    call    _print
+    pop     si
     print_newline
     add     si, 10
 set_discount:
@@ -340,7 +297,7 @@ empty_value:
     ret
 set_value endp
 
-print_number proc far
+print_number proc
     pusha
     mov     bx, 10
     mov     cx, 0
@@ -361,7 +318,7 @@ loop_print_number:
     ret
 print_number endp
 
-calc_all proc far
+calc_all proc
     pusha
     mov     cx, item_number
 loop_calc_all:
@@ -372,7 +329,7 @@ loop_calc_all:
     ret
 calc_all endp
 
-calc_rank proc far
+calc_rank proc
     pusha
     call    calc_all
     push    di
@@ -451,7 +408,7 @@ set_rank:
     ret
 set_rank_func endp
 
-print_all proc far
+print_all proc
     pusha
     call    calc_rank
     print   info_header_2
@@ -459,7 +416,9 @@ print_all proc far
     mov     si, dx
     mov     di, cx
 loop_print_all:
-    print_address si
+    push    si
+    call    _print
+    pop     si
     print_char 9
     movzx   ax, byte ptr[si + 10]
     call    print_number
@@ -484,19 +443,25 @@ loop_print_all:
     ret
 print_all endp
 
-calc_suggestion_level proc far
+_calc proc
+    mov     dx, ax
+    call    calc_suggestion_level
+    ret
+_calc endp
+
+calc_suggestion_level proc
     pusha
     mov     si, dx
     add     si, 10
     movzx   ax, byte ptr[si]
     inc     si
-    imul    ax, word ptr[si+2]
+    imul    ax, [si+2]
     cwd
     mov     dx, 0
     mov     bx, 10
     idiv    bx
     mov     bx, ax
-    mov     ax, word ptr[si]
+    mov     ax, [si]
     imul    ax, 1280
     cwd
     mov     dx, 0
@@ -504,8 +469,8 @@ calc_suggestion_level proc far
     je      calc_failed
     idiv    bx
     mov     cx, ax
-    mov     bx, word ptr[si+4]
-    mov     ax, word ptr[si+6]
+    mov     bx, [si+4]
+    mov     ax, [si+6]
     imul    ax, 1280
     cwd
     mov     dx, 0
@@ -519,7 +484,7 @@ calc_suggestion_level proc far
     mov     bx, 10
     idiv    bx
     mov     cx, ax
-    mov     word ptr[si+8], cx
+    mov     [si+8], cx
     popa
     ret
 calc_failed:
@@ -531,5 +496,5 @@ calc_suggestion_level endp
 return:
     popa
     ret
-code ends
+_TEXT ends
 end
