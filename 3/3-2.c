@@ -66,7 +66,7 @@ void func1(void) {
         for (; i < 30; i++) {
             if (!strcmp(shop[i].name, name)) {
                 Item item = shop[i];
-                calc(&item);
+                calc(&(shop[i]));
                 printf("name\tdiscnt\tprice\tinNum\toutNum\tsuggestion\n");
                 printf("%s\t%d\t%d\t%d\t%d\t%d\n", item.name, item.discount, item.price, item.inNum, item.outNum, item.suggestion);
                 return;
