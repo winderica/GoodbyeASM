@@ -63,7 +63,7 @@ data segment use16
     username_hint           db  'Input your username:', 13, 10, '$'
     password_hint           db  'Input your password:', 13, 10, '$'
     succeeded_hint          db  'Login succeeded', 13, 10, '$'
-    failed_hint             db  'Login failed, please input again', 13, 10, '$'
+    failed_hint             db  'Login failed', 13, 10, '$'
     not_found_hint          db  'Item not found, please input again', 13, 10, '$'
     item_hint               db  'Input item name:', 13, 10, '$'
     level_hint              db  'Suggestion level is:', 13, 10, '$'
@@ -87,8 +87,10 @@ data segment use16
     info_price              db  'price: ', '$'
     info_in_num             db  'inNum: ', '$'
     info_out_num            db  'outNum: ', '$'
-    boss_username           db  'zcr', 0
-    boss_password           db  'test', 0
+    fake_username           db  'username', 0
+    fake_password           db  'password', 0
+    fake_username_2         db  'trdso`ld', 0
+    fake_password_2         db  'rcqqumpf', 0
     input_username          db  20
                             db  0
     input_username_value    db  20 dup(0)
@@ -117,16 +119,19 @@ data segment use16
                             db  0
     input_out_num_value     db  5 dup(0)
     shop_name               db  'shop', 13, 10, '$'
-    items                   db  item_number - 3 dup('temp', 0, '$', 4 dup(0), 8, 15, 0, 30, 0, 30, 0, 2, 0, ?, ?)
+    items                   db  item_number - 3 dup('temp', 0, '$', 4 dup(0), 8, 15 xor 30, 0, 30, 0, 30, 0, 2, 0, ?, ?)
                             db  'pen', 0, '$', 5 dup(0), 10
-                            dw  35, 56, 70, 25, ?
+                            dw  35 xor 56, 56, 70, 25, ?
                             db  'book', 0, '$', 4 dup(0), 9
-                            dw  12, 30, 25, 5, ?
+                            dw  12 xor 30, 30, 25, 5, ?
                             db  'bag', 0, '$', 5 dup(0), 9
-                            dw  40, 100, 45, 5, ?
+                            dw  40 xor 100, 100, 45, 5, ?
     to_sort                 dw  item_number dup(0)
     rank                    db  item_number dup(0)
     auth                    db  0
+    address0                dw  login
+    address1                dw  verify_username
+    address2                dw  verify_password
 data ends
 
 code segment use16
@@ -134,9 +139,12 @@ code segment use16
 start:
     mov     ax, data
     mov     ds, ax
-    jmp     login
+    mov     dx, 0
+    jmp     address0
 
 login:
+    cmp     dx, 3
+    je      exit
     print   shop_name
     print   username_hint
     input   input_username
@@ -147,36 +155,63 @@ login:
     je      shop_main
     print   password_hint
     input   input_password
-    jmp     verify_username
+    jmp     address1
 
 login_failed:
     print   failed_hint
-    jmp     login
+    inc     dx
+    jmp     address0
 
 verify_username:
-    mov     si, offset boss_username
+    mov     si, offset fake_username
+    mov     di, offset fake_username_2
     mov     bx, offset input_username_value
 check_username:
     mov     al, [bx]
-    cmp     byte ptr[si], al
+    mov     cl, byte ptr[si]
+    xor     cl, byte ptr[di]
+    cmp     cl, al
     jne     login_failed
     inc     si
+    inc     di
     inc     bx
     cmp     byte ptr[bx], 13
     jne     check_username
     cmp     byte ptr[si], 0
     jne     check_username
-    jmp     verify_password
+    jmp     address2
 
 verify_password:
-    mov     si, offset boss_password
+    mov     si, offset fake_password
+    mov     di, offset fake_password_2
     mov     bx, offset input_password_value
 check_password:
+    cli
+    mov     ah, 2ch
+    int     21h
+    push    dx
+
+    call    nothing
+
+    mov     ah, 2ch
+    int     21h
+    sti
+    sub     dx, [esp]
+    cmp     dx, 1
+    jg      exit
+    pop     dx
+
     mov     al, [bx]
-    cmp     byte ptr[si], al
+    mov     cl, byte ptr[si]
+    call    nothing
+    xor     cl, byte ptr[di]
+
+    cmp     cl, al
     jne     login_failed
     inc     si
+    inc     di
     inc     bx
+    call    nothing    
     cmp     byte ptr[bx], 13
     jne     check_password
     cmp     byte ptr[si], 0
@@ -185,12 +220,52 @@ check_password:
 
 login_succeed:
     print   succeeded_hint
+    call    recover_value
     mov     auth, 1
     jmp     shop_main
 
 shop_main:
     call    show_menu
     jmp     shop_main
+
+nothing proc
+    pusha
+    mov     al, [bx]
+    nop
+    nop
+    nop
+    mov     cl, byte ptr[si]
+    xor     cl, byte ptr[di]
+nothing_label:
+    add     dx, 21
+    mov     si, dx
+    nop
+    nop
+    nop
+    mov     bx, offset input_item_value
+    add     cx, 1
+    cmp     cx, item_number
+    nop
+    nop
+    nop
+    jle     nothing_label
+    cmp     cl, al
+    jne     return
+    cmp     byte ptr[bx], 13
+    jne     return
+    nop
+    nop
+    nop
+    cmp     byte ptr[si], 0
+    jne     return
+    inc     si
+    inc     di
+    inc     bx
+    nop
+    nop
+    nop
+    jmp     return
+nothing endp
 
 show_menu proc
     cmp     auth, 1
@@ -250,6 +325,21 @@ call_func5:
 call_func6:
     call    exit
 show_menu endp
+
+recover_value proc
+    pusha
+    mov     bx, 0
+    mov     si, offset items
+loop_recover_value:
+    mov     ax, [si + 11]
+    xor     ax, [si + 13]
+    mov     word ptr[si + 11], ax
+    inc     bx
+    add     si, 21
+    cmp     bx, item_number
+    je      return
+    jmp     loop_recover_value
+recover_value endp
 
 find proc
     print   item_hint
