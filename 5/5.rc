@@ -1,0 +1,17 @@
+600 MENUEX MOVEABLE IMPURE LOADONCALL DISCARDABLE
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "E&xit",10001
+    END
+    POPUP "&Action"
+    BEGIN
+        MENUITEM "R&ecommendation",20001
+        MENUITEM "L&ist",20002
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "A&bout",30001
+    END
+END
+
